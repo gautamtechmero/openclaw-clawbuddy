@@ -10,17 +10,20 @@ const fs = require('fs');
 const path = require('path');
 const os = require('os');
 
-async function getOpenclawToken() {
+async function getOpenclawConfig() {
   try {
     const configPath = path.join(os.homedir(), '.openclaw', 'openclaw.json');
     if (fs.existsSync(configPath)) {
       const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
-      return config?.gateway?.auth?.token || null;
+      return {
+        token: config?.gateway?.auth?.token || null,
+        port: config?.gateway?.port || 18789
+      };
     }
   } catch (e) {
     console.error("Could not read Openclaw config:", e);
   }
-  return null;
+  return { token: null, port: 18789 };
 }
 
 async function chatHandler(message, userName, contextData) {
@@ -50,13 +53,13 @@ ${locationContext}
 Always respond concisely and helpfully. Keep answers short (1-3 sentences) suitable for a mobile app chat interface.`;
 
     // 2. Connect to the real Openclaw AI Engine (local gateway)
-    const token = await getOpenclawToken();
+    const { token, port } = await getOpenclawConfig();
     if (!token) {
       // Fallback if Openclaw is not running or securely configured
       return { message: "I couldn't securely connect to my Openclaw AI brain. Please check your core Openclaw installation!" };
     }
 
-    const aiRequest = await fetch('http://127.0.0.1:18789/v1/chat/completions', {
+    const aiRequest = await fetch(`http://127.0.0.1:${port}/v1/chat/completions`, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${token}`,
