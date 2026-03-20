@@ -9,7 +9,7 @@ This is the server-side plugin that bridges the [Claw Buddy](https://github.com/
 ## Quick Start
 
 ```bash
-npx openclaw-clawbuddy setup --code CB-XXXX-XXXX-XXXX
+npx github:gautamtechmero/openclaw-clawbuddy setup --code CB-XXXX-XXXX-XXXX
 ```
 
 That's it. The command will:
@@ -34,7 +34,7 @@ That's it. The command will:
          │     CB-XXXX-XXXX-XXXX        │
          │                              │
          │  2. User runs:               │
-         │     npx openclaw-clawbuddy   │
+         │     npx github:gautam...     │
          │     setup --code CB-XXXX     │
          │                              │
          │  3. Plugin generates         │
