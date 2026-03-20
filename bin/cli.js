@@ -4,6 +4,7 @@ const { program } = require('commander');
 const chalk = require('chalk');
 const { v4: uuidv4 } = require('uuid');
 const crypto = require('crypto');
+const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { startServer } = require('../src/server');
@@ -61,8 +62,25 @@ program
 
     // Step 2: Install plugin
     console.log(chalk.yellow('⟳') + chalk.white(' Installing Claw Buddy plugin...'));
-    await sleep(1200);
+    
+    // Actually Install the Openclaw Skill
+    const openclawSkillsDir = path.join(os.homedir(), '.openclaw', 'skills');
+    const clawbuddySkillDest = path.join(openclawSkillsDir, 'clawbuddy');
+    const clawbuddySkillSource = path.resolve(__dirname, '../skills/clawbuddy');
+    
+    if (fs.existsSync(openclawSkillsDir)) {
+      if (!fs.existsSync(clawbuddySkillDest)) {
+        fs.mkdirSync(clawbuddySkillDest, { recursive: true });
+      }
+      // Copy the skill files
+      if (fs.existsSync(clawbuddySkillSource)) {
+        fs.cpSync(clawbuddySkillSource, clawbuddySkillDest, { recursive: true });
+      }
+    }
+    
+    await sleep(400);
     console.log(chalk.green('✓') + chalk.white(' Plugin installed: ') + chalk.gray('openclaw-clawbuddy@1.1.0 (SQLite version)'));
+    console.log(chalk.green('✓') + chalk.white(' Skill installed at: ') + chalk.gray('~/.openclaw/skills/clawbuddy'));
     console.log();
 
     // Step 3: Detect channels

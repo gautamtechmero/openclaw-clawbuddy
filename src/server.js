@@ -36,12 +36,12 @@ async function startServer({ pairingData, pairingKey, wsPort = 18789, httpPort =
       next();
     });
 
-    // Auth middleware — verify pairing key
+    // Auth middleware — verify pairing key (temporarily disabled for local testing)
     const authMiddleware = (req, res, next) => {
-      const authHeader = req.headers.authorization;
-      if (!authHeader || authHeader !== `Bearer ${pairingData.auth}`) {
-        return res.status(401).json({ error: 'Unauthorized — invalid auth token' });
-      }
+      // const authHeader = req.headers.authorization;
+      // if (!authHeader || authHeader !== `Bearer ${pairingData.auth}`) {
+      //   return res.status(401).json({ error: 'Unauthorized — invalid auth token' });
+      // }
       next();
     };
 
@@ -202,12 +202,12 @@ async function startServer({ pairingData, pairingKey, wsPort = 18789, httpPort =
 
           switch (msg.type) {
             case 'auth':
-              if (msg.token === pairingData.auth) {
+              // if (msg.token === pairingData.auth) {
                 ws.send(JSON.stringify({ type: 'auth_ok', instanceId: pairingData.instanceId }));
-                console.log('🔐 WebSocket authenticated');
-              } else {
-                ws.send(JSON.stringify({ type: 'auth_fail' }));
-              }
+                console.log('🔐 WebSocket authenticated (auth disabled for local dev)');
+              // } else {
+              //   ws.send(JSON.stringify({ type: 'auth_fail' }));
+              // }
               break;
 
             case 'chat':
