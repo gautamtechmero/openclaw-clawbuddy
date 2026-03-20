@@ -17,8 +17,9 @@ That's it. The command will:
 1. ✅ Detect your Openclaw installation
 2. ✅ Install the Claw Buddy plugin
 3. ✅ Set up local network + API server
-4. ✅ Generate a pairing key (+ QR code)
-5. ✅ Start the WebSocket + HTTP server
+4. ✅ Initialize SQLite database (perstistent storage for tasks/habits/expenses)
+5. ✅ Generate a pairing key (+ QR code)
+6. ✅ Start the WebSocket + HTTP server
 
 ---
 

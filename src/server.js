@@ -14,8 +14,12 @@ const { habitHandlers } = require('./handlers/habits');
 const { expenseHandlers } = require('./handlers/expenses');
 const { journalHandlers } = require('./handlers/journal');
 const { chatHandler } = require('./handlers/chat');
+const { initDb, getDb } = require('./database');
 
-function startServer({ pairingData, pairingKey, wsPort = 18789, httpPort = 18790 }) {
+async function startServer({ pairingData, pairingKey, wsPort = 18789, httpPort = 18790 }) {
+  // Initialize database
+  await initDb();
+
   return new Promise((resolve) => {
     // ═══════════════════════════════════════
     // HTTP API Server
@@ -92,20 +96,34 @@ function startServer({ pairingData, pairingKey, wsPort = 18789, httpPort = 18790
     // ─── Protected Routes ───
 
     // Briefing
-    app.get('/briefing', authMiddleware, (req, res) => {
+    app.get('/briefing', authMiddleware, async (req, res) => {
+      const db = getDb();
       const hour = new Date().getHours();
       let greeting = 'Good evening';
       if (hour < 12) greeting = 'Good morning';
       else if (hour < 17) greeting = 'Good afternoon';
 
-      res.json({
-        greeting,
-        userName: pairingData.userName,
-        summary: `You have 4 tasks today, 1 habit pending, and ₹1,200 left in your budget. Let's go 💪`,
-        tasksToday: 4,
-        habitsPending: 1,
-        budgetRemaining: 1200,
-      });
+      try {
+        const tasksToday = await db.get('SELECT COUNT(*) as count FROM tasks WHERE done = 0');
+        const habitsPending = await db.get('SELECT COUNT(*) as count FROM habits'); // Simple count for now
+        const spending = await db.get('SELECT SUM(amount) as spent FROM expenses');
+        const budgetRow = await db.get('SELECT amount FROM budget WHERE id = 1');
+        
+        const spent = spending.spent || 0;
+        const budget = budgetRow.amount || 20000;
+        const remaining = budget - spent;
+
+        res.json({
+          greeting,
+          userName: pairingData.userName,
+          summary: `You have ${tasksToday.count} tasks today, ${habitsPending.count} habits pending, and ₹${remaining.toLocaleString()} left in your budget. Let's go 💪`,
+          tasksToday: tasksToday.count,
+          habitsPending: habitsPending.count,
+          budgetRemaining: remaining,
+        });
+      } catch (error) {
+        res.status(500).json({ error: error.message });
+      }
     });
 
     // Tasks API

@@ -1,63 +1,66 @@
-/**
- * Expense handlers — in-memory store for demo/testing
- */
-
-let expenses = [
-  { id: '1', amount: 450, category: 'Food', note: 'Starbucks', date: '2024-03-20' },
-  { id: '2', amount: 120, category: 'Bills', note: 'Phone recharge', date: '2024-03-20' },
-  { id: '3', amount: 270, category: 'Shopping', note: 'Amazon', date: '2024-03-19' },
-  { id: '4', amount: 1800, category: 'Rent', note: 'Electricity bill', date: '2024-03-18' },
-];
-
-const budgets = {
-  Food: 5000,
-  Shopping: 3000,
-  Rent: 15000,
-  Bills: 2000,
-};
-
-let nextId = 5;
+const { getDb } = require('../database');
+const { v4: uuidv4 } = require('uuid');
 
 const expenseHandlers = {
-  list: (req, res) => {
-    res.json({ expenses, total: expenses.length });
-  },
-
-  create: (req, res) => {
-    const { amount, category, note } = req.body;
-    const expense = {
-      id: String(nextId++),
-      amount: Number(amount),
-      category: category || 'Food',
-      note: note || '',
-      date: new Date().toISOString().split('T')[0],
-    };
-    expenses.push(expense);
-    console.log(`💰 Expense logged: ₹${amount} — ${category}`);
-    res.json({ success: true, expense });
-  },
-
-  summary: (req, res) => {
-    const totals = {};
-    for (const exp of expenses) {
-      totals[exp.category] = (totals[exp.category] || 0) + exp.amount;
+  list: async (req, res) => {
+    const db = getDb();
+    
+    try {
+      const expenses = await db.all('SELECT * FROM expenses ORDER BY date DESC');
+      res.json({ expenses, total: expenses.length });
+    } catch (error) {
+      res.status(500).json({ error: error.message });
     }
+  },
 
-    const grandTotal = Object.values(totals).reduce((a, b) => a + b, 0);
+  create: async (req, res) => {
+    const db = getDb();
+    const { amount, category, date, icon, color } = req.body;
+    const id = uuidv4();
+    
+    try {
+      await db.run(
+        'INSERT INTO expenses (id, amount, category, date, icon, color) VALUES (?, ?, ?, ?, ?, ?)',
+        [id, Number(amount), category || 'Other', date || new Date().toISOString().split('T')[0], icon || 'Wallet', color || '#0A84FF']
+      );
+      
+      const expense = await db.get('SELECT * FROM expenses WHERE id = ?', [id]);
+      console.log(`💰 Expense logged: ₹${amount} — ${category}`);
+      res.json({ success: true, expense });
+    } catch (error) {
+      res.status(500).json({ error: error.message });
+    }
+  },
 
-    const categories = Object.entries(totals).map(([name, spent]) => ({
-      name,
-      spent,
-      budget: budgets[name] || 5000,
-      percentage: Math.round((spent / (budgets[name] || 5000)) * 100),
-    }));
+  summary: async (req, res) => {
+    const db = getDb();
+    
+    try {
+      const spending = await db.get('SELECT SUM(amount) as spent FROM expenses');
+      const budgetRow = await db.get('SELECT amount FROM budget WHERE id = 1');
+      
+      const spent = spending.spent || 0;
+      const budget = budgetRow.amount || 20000;
 
-    res.json({
-      totalSpent: grandTotal,
-      totalBudget: Object.values(budgets).reduce((a, b) => a + b, 0),
-      categories,
-      insight: `You've spent ₹${grandTotal} this month. Food is your highest category.`,
-    });
+      // Group by category
+      const categoriesRaw = await db.all('SELECT category, SUM(amount) as spent FROM expenses GROUP BY category');
+      
+      const categories = categoriesRaw.map(c => ({
+        name: c.category,
+        spent: c.spent,
+        budget: Math.round(budget / (categoriesRaw.length || 1)), // Simple proportional budget for now
+        percentage: Math.round((c.spent / (budget / (categoriesRaw.length || 1))) * 100)
+      }));
+
+      res.json({
+        totalSpent: spent,
+        totalBudget: budget,
+        categories,
+        insight: `You've spent ₹${spent.toLocaleString()} this month.`,
+      });
+    } catch (error) {
+      res.status(500).json({ error: error.message });
+    }
   },
 };
 

@@ -1,66 +1,88 @@
-/**
- * Task handlers — in-memory store for demo/testing
- */
-
-let tasks = [
-  { id: '1', title: 'Review Q3 Report', description: 'Go through the final quarterly report', time: '10:00 AM', priority: 'high', channel: 'Telegram', section: 'Morning', done: false, subtasks: [
-    { id: 's1', title: 'Check revenue metrics', done: true },
-    { id: 's2', title: 'Verify user growth data', done: false },
-    { id: 's3', title: 'Draft summary email', done: false },
-  ] },
-  { id: '2', title: 'Call with Architecture Team', description: 'Discuss new microservices plan', time: '1:30 PM', priority: 'medium', section: 'Afternoon', done: false, subtasks: [] },
-  { id: '3', title: 'Update Design System', description: 'Sync Figma tokens with code', time: '4:00 PM', priority: 'low', section: 'Afternoon', done: false, subtasks: [] },
-  { id: '4', title: 'Buy Groceries', description: 'Milk, eggs, bread, coffee', time: '6:30 PM', priority: 'low', channel: 'WhatsApp', section: 'Evening', done: false, subtasks: [] },
-];
-
-let nextId = 5;
+const { getDb } = require('../database');
+const { v4: uuidv4 } = require('uuid');
 
 const taskHandlers = {
-  list: (req, res) => {
+  list: async (req, res) => {
+    const db = getDb();
     const { filter } = req.query; // today, upcoming, completed
-    let filtered = tasks;
-    if (filter === 'completed') {
-      filtered = tasks.filter(t => t.done);
-    } else if (filter === 'today') {
-      filtered = tasks.filter(t => !t.done);
+    
+    try {
+      let query = 'SELECT * FROM tasks';
+      let params = [];
+      
+      if (filter === 'completed') {
+        query += ' WHERE done = 1';
+      } else if (filter === 'today') {
+        query += ' WHERE done = 0';
+      }
+      
+      const tasks = await db.all(query, params);
+      res.json({ tasks, total: tasks.length });
+    } catch (error) {
+      res.status(500).json({ error: error.message });
     }
-    res.json({ tasks: filtered, total: filtered.length });
   },
 
-  create: (req, res) => {
+  create: async (req, res) => {
+    const db = getDb();
     const { title, description, time, priority, channel, section } = req.body;
-    const task = {
-      id: String(nextId++),
-      title,
-      description: description || '',
-      time: time || '',
-      priority: priority || 'medium',
-      channel: channel || null,
-      section: section || 'Morning',
-      done: false,
-      subtasks: [],
-    };
-    tasks.push(task);
-    console.log(`📋 Task created: "${title}"`);
-    res.json({ success: true, task });
+    const id = uuidv4();
+    
+    try {
+      await db.run(
+        `INSERT INTO tasks (id, title, description, time, priority, channel, section, done) 
+         VALUES (?, ?, ?, ?, ?, ?, ?, 0)`,
+        [id, title, description || '', time || '', priority || 'medium', channel || null, section || 'Morning']
+      );
+      
+      const task = await db.get('SELECT * FROM tasks WHERE id = ?', [id]);
+      console.log(`📋 Task created: "${title}"`);
+      res.json({ success: true, task });
+    } catch (error) {
+      res.status(500).json({ error: error.message });
+    }
   },
 
-  update: (req, res) => {
+  update: async (req, res) => {
+    const db = getDb();
     const { id } = req.params;
-    const idx = tasks.findIndex(t => t.id === id);
-    if (idx === -1) return res.status(404).json({ error: 'Task not found' });
-    tasks[idx] = { ...tasks[idx], ...req.body };
-    console.log(`📋 Task updated: "${tasks[idx].title}"`);
-    res.json({ success: true, task: tasks[idx] });
+    
+    try {
+      const existing = await db.get('SELECT * FROM tasks WHERE id = ?', [id]);
+      if (!existing) return res.status(404).json({ error: 'Task not found' });
+      
+      const updates = req.body;
+      const fields = Object.keys(updates).filter(f => f !== 'id');
+      const setClause = fields.map(f => `${f} = ?`).join(', ');
+      const params = fields.map(f => updates[f] === true ? 1 : (updates[f] === false ? 0 : updates[f]));
+      params.push(id);
+
+      if (fields.length > 0) {
+        await db.run(`UPDATE tasks SET ${setClause} WHERE id = ?`, params);
+      }
+      
+      const task = await db.get('SELECT * FROM tasks WHERE id = ?', [id]);
+      console.log(`📋 Task updated: "${task.title}"`);
+      res.json({ success: true, task });
+    } catch (error) {
+      res.status(500).json({ error: error.message });
+    }
   },
 
-  remove: (req, res) => {
+  remove: async (req, res) => {
+    const db = getDb();
     const { id } = req.params;
-    const idx = tasks.findIndex(t => t.id === id);
-    if (idx === -1) return res.status(404).json({ error: 'Task not found' });
-    const removed = tasks.splice(idx, 1)[0];
-    console.log(`🗑️ Task deleted: "${removed.title}"`);
-    res.json({ success: true });
+    
+    try {
+      const task = await db.get('SELECT * FROM tasks WHERE id = ?', [id]);
+      if (!task) return res.status(404).json({ error: 'Task not found' });
+      
+      await db.run('DELETE FROM tasks WHERE id = ?', [id]);
+      console.log(`🗑️ Task deleted: "${task.title}"`);
+      res.json({ success: true });
+    } catch (error) {
+      res.status(500).json({ error: error.message });
+    }
   },
 };
 
