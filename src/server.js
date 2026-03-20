@@ -184,14 +184,14 @@ async function startServer({ pairingData, pairingKey, wsPort = 18789, httpPort =
       res.json({ success: true });
     });
 
-    const httpServer = app.listen(httpPort, () => {
+    const httpServer = app.listen(httpPort, '0.0.0.0', () => {
       // Server started silently — CLI prints the message
     });
 
     // ═══════════════════════════════════════
     // WebSocket Server (for real-time chat)
     // ═══════════════════════════════════════
-    const wss = new WebSocketServer({ port: wsPort });
+    const wss = new WebSocketServer({ host: '0.0.0.0', port: wsPort });
 
     wss.on('connection', (ws) => {
       console.log('🔌 Claw Buddy app connected via WebSocket');
