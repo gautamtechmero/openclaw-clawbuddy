@@ -7,7 +7,7 @@ const expenseHandlers = {
     
     try {
       const expenses = await db.all('SELECT * FROM expenses ORDER BY date DESC');
-      res.json({ expenses, total: expenses.length });
+      res.json(expenses);
     } catch (error) {
       res.status(500).json({ error: error.message });
     }
@@ -58,6 +58,22 @@ const expenseHandlers = {
         categories,
         insight: `You've spent ₹${spent.toLocaleString()} this month.`,
       });
+    } catch (error) {
+      res.status(500).json({ error: error.message });
+    }
+  },
+
+  remove: async (req, res) => {
+    const db = getDb();
+    const { id } = req.params;
+    
+    try {
+      const expense = await db.get('SELECT * FROM expenses WHERE id = ?', [id]);
+      if (!expense) return res.status(404).json({ error: 'Expense not found' });
+      
+      await db.run('DELETE FROM expenses WHERE id = ?', [id]);
+      console.log(`🗑️ Expense deleted: "${expense.category}"`);
+      res.json({ success: true });
     } catch (error) {
       res.status(500).json({ error: error.message });
     }

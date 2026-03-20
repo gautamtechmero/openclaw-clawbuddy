@@ -13,7 +13,7 @@ const journalHandlers = {
         mood: e.mood,
         date: e.date
       }));
-      res.json({ entries, total: entries.length });
+      res.json(entries);
     } catch (error) {
       res.status(500).json({ error: error.message });
     }
@@ -35,6 +35,22 @@ const journalHandlers = {
       const entry = await db.get('SELECT * FROM journal WHERE id = ?', [id]);
       console.log(`📓 Journal entry saved: "${content?.substring(0, 30)}..."`);
       res.json({ success: true, entry });
+    } catch (error) {
+      res.status(500).json({ error: error.message });
+    }
+  },
+
+  remove: async (req, res) => {
+    const db = getDb();
+    const { id } = req.params;
+    
+    try {
+      const entry = await db.get('SELECT * FROM journal WHERE id = ?', [id]);
+      if (!entry) return res.status(404).json({ error: 'Entry not found' });
+      
+      await db.run('DELETE FROM journal WHERE id = ?', [id]);
+      console.log(`🗑️ Journal entry deleted`);
+      res.json({ success: true });
     } catch (error) {
       res.status(500).json({ error: error.message });
     }

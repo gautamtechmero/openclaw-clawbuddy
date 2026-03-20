@@ -141,11 +141,13 @@ async function startServer({ pairingData, pairingKey, wsPort = 18789, httpPort =
     // Expenses API
     app.get('/expenses', authMiddleware, expenseHandlers.list);
     app.post('/expenses', authMiddleware, expenseHandlers.create);
+    app.delete('/expenses/:id', authMiddleware, expenseHandlers.remove);
     app.get('/expenses/summary', authMiddleware, expenseHandlers.summary);
 
     // Journal API
     app.get('/journal', authMiddleware, journalHandlers.list);
     app.post('/journal', authMiddleware, journalHandlers.create);
+    app.delete('/journal/:id', authMiddleware, journalHandlers.remove);
 
     // AI Chat API
     app.post('/chat', authMiddleware, async (req, res) => {
