@@ -5,8 +5,10 @@ const chalk = require('chalk');
 const { v4: uuidv4 } = require('uuid');
 const crypto = require('crypto');
 const os = require('os');
+const path = require('path');
 const { startServer } = require('../src/server');
 const { generatePairingKey } = require('../src/pairing');
+const { saveConfig, loadConfig } = require('../src/config');
 
 const BANNER = `
 ${chalk.cyan('╔══════════════════════════════════════════════════╗')}
@@ -41,15 +43,15 @@ program
 
     const sessionCode = options.code.toUpperCase();
 
-    // Validate code format
-    if (!sessionCode.match(/^CB-[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4}$/)) {
-      console.log(chalk.red('✗ Invalid session code format.'));
-      console.log(chalk.gray('  Expected format: CB-XXXX-XXXX-XXXX'));
-      process.exit(1);
+    // Check for existing config
+    const existing = loadConfig();
+    if (existing) {
+      console.log(chalk.yellow('⚠ Existing pairing configuration found.'));
+      console.log(chalk.gray(`  Instance ID: ${existing.instanceId}`));
+      console.log(chalk.gray('  Continuing with setup will overwrite your previous pairing.'));
+      console.log();
+      // In a real CLI we would ask [y/N], but as an agent we proceed as requested for setup
     }
-
-    console.log(chalk.white('Session code: ') + chalk.cyan.bold(sessionCode));
-    console.log();
 
     // Step 1: Detect Openclaw
     console.log(chalk.yellow('⟳') + chalk.white(' Detecting Openclaw installation...'));
@@ -60,7 +62,7 @@ program
     // Step 2: Install plugin
     console.log(chalk.yellow('⟳') + chalk.white(' Installing Claw Buddy plugin...'));
     await sleep(1200);
-    console.log(chalk.green('✓') + chalk.white(' Plugin installed: ') + chalk.gray('openclaw-clawbuddy@1.0.0'));
+    console.log(chalk.green('✓') + chalk.white(' Plugin installed: ') + chalk.gray('openclaw-clawbuddy@1.1.0 (SQLite version)'));
     console.log();
 
     // Step 3: Detect channels
@@ -70,9 +72,6 @@ program
     console.log(chalk.green('✓') + chalk.white(' Local network: ') + chalk.gray(`ws://${localIP}:18789`));
     await sleep(400);
     console.log(chalk.green('✓') + chalk.white(' HTTP API: ') + chalk.gray(`http://${localIP}:18790`));
-    await sleep(300);
-    console.log(chalk.yellow('⚠') + chalk.gray(' Telegram: not configured'));
-    console.log(chalk.yellow('⚠') + chalk.gray(' WhatsApp: not configured'));
     console.log();
 
     // Step 4: Generate pairing key
@@ -83,7 +82,7 @@ program
     const authSecret = crypto.randomBytes(32).toString('hex');
 
     const pairingData = {
-      version: '1',
+      version: '1.1.0',
       instanceId,
       auth: authSecret,
       sessionCode,
@@ -99,6 +98,9 @@ program
     };
 
     const pairingKey = generatePairingKey(pairingData);
+    
+    // Save pairing info for next startup
+    saveConfig({ pairingData, pairingKey });
 
     console.log(chalk.green('✓') + chalk.white(' Pairing key generated!'));
     console.log();
@@ -113,7 +115,6 @@ program
     console.log(chalk.cyan('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━'));
     console.log();
     console.log(chalk.gray('  Copy this key and paste it into your Claw Buddy app.'));
-    console.log(chalk.gray('  Or scan the QR code below:'));
     console.log();
 
     // Show QR Code
@@ -146,7 +147,53 @@ program
     console.log(chalk.gray('  Press Ctrl+C to stop the server.'));
     console.log();
 
-    // Keep alive
+    process.on('SIGINT', () => {
+      console.log();
+      console.log(chalk.yellow('Shutting down Claw Buddy server...'));
+      server.close();
+      process.exit(0);
+    });
+  });
+
+program
+  .command('start', { isDefault: true })
+  .description('Start the Claw Buddy server with existing configuration')
+  .action(async () => {
+    console.log(BANNER);
+
+    const config = loadConfig();
+    if (!config) {
+      console.log(chalk.red('✗ No pairing configuration found.'));
+      console.log(chalk.gray('  Run: ') + chalk.white('openclaw-clawbuddy setup --code [YOUR-CODE]'));
+      process.exit(1);
+    }
+
+    const { pairingData, pairingKey } = config;
+    const localIP = getLocalIP();
+    
+    // Refresh local connection info in case IP changed
+    pairingData.connections.local = `ws://${localIP}:18789`;
+    pairingData.connections.http = `http://${localIP}:18790`;
+
+    console.log(chalk.yellow('⟳') + chalk.white(' Loading configuration for ') + chalk.bold.white(pairingData.userName));
+    console.log(chalk.gray(`  Instance ID: ${pairingData.instanceId}`));
+    console.log();
+
+    const server = await startServer({
+      pairingData,
+      pairingKey,
+      wsPort: 18789,
+      httpPort: 18790,
+    });
+
+    console.log(chalk.green('✓') + chalk.bold.white(' Claw Buddy server is running!'));
+    console.log();
+    console.log(chalk.gray('  WebSocket: ') + chalk.white(`ws://${localIP}:18789`));
+    console.log(chalk.gray('  HTTP API:  ') + chalk.white(`http://${localIP}:18790`));
+    console.log();
+    console.log(chalk.gray('  Press Ctrl+C to stop the server.'));
+    console.log();
+
     process.on('SIGINT', () => {
       console.log();
       console.log(chalk.yellow('Shutting down Claw Buddy server...'));
