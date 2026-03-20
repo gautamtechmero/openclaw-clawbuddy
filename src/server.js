@@ -152,8 +152,8 @@ async function startServer({ pairingData, pairingKey, wsPort = 18789, httpPort =
     // AI Chat API
     app.post('/chat', authMiddleware, async (req, res) => {
       try {
-        const { message } = req.body;
-        const response = await chatHandler(message, pairingData.userName);
+        const { message, contextData } = req.body;
+        const response = await chatHandler(message, pairingData.userName, contextData);
         res.json(response);
       } catch (error) {
         res.status(500).json({ error: error.message });

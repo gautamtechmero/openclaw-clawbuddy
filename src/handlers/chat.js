@@ -5,88 +5,90 @@
  * For testing, it provides contextual canned responses.
  */
 
-const CLAW_RESPONSES = [
-  {
-    keywords: ['hi', 'hello', 'hey', 'sup'],
-    response: "Hey there! 🐾 I'm Claw, your AI buddy. What can I help you with today?",
-    actions: [
-      { label: 'Show my tasks', type: 'navigate', target: 'tasks' },
-      { label: 'How am I doing?', type: 'summary' },
-    ],
-  },
-  {
-    keywords: ['task', 'todo', 'remind'],
-    response: "You have 4 tasks today. The most urgent one is 'Review Q3 Report' at 10:00 AM. Want me to help you prioritize?",
-    actions: [
-      { label: 'Show all tasks', type: 'navigate', target: 'tasks' },
-      { label: 'Add a new task', type: 'navigate', target: 'tasks/new' },
-    ],
-  },
-  {
-    keywords: ['habit', 'streak', 'water', 'meditat'],
-    response: "Great progress! 💧 Your water habit has a 45-day streak going. Your meditation streak is at 12 days. Keep it up!",
-    actions: [
-      { label: 'Check in now', type: 'navigate', target: 'habits' },
-    ],
-  },
-  {
-    keywords: ['spend', 'money', 'budget', 'expense'],
-    response: "You've spent ₹840 today out of your ₹1,200 daily budget. Food was your biggest category at ₹450. Want to log something?",
-    actions: [
-      { label: 'Log expense', type: 'navigate', target: 'expenses/new' },
-      { label: 'See breakdown', type: 'navigate', target: 'expenses' },
-    ],
-  },
-  {
-    keywords: ['journal', 'mood', 'feel', 'day'],
-    response: "I noticed you've been feeling great this week! 🤩 Your mood trend is on the rise. Want to journal about today?",
-    actions: [
-      { label: 'Write entry', type: 'navigate', target: 'journal' },
-    ],
-  },
-  {
-    keywords: ['calendar', 'schedule', 'meeting', 'event'],
-    response: "You have 3 events today: Design Review at 10 AM, Daily Workout at 5 PM, and Anniversary Dinner at 8 PM. Busy day ahead!",
-    actions: [
-      { label: 'View calendar', type: 'navigate', target: 'calendar' },
-    ],
-  },
-  {
-    keywords: ['help', 'what can you do', 'feature'],
-    response: "I can help you with:\n• 📋 Managing tasks & reminders\n• 🎯 Tracking habits & streaks\n• 💰 Logging expenses & budgets\n• 📓 Journaling & mood tracking\n• 📅 Calendar & scheduling\n\nJust ask me anything!",
-    actions: [],
-  },
-];
+const { getDb } = require('../database');
+const fs = require('fs');
+const path = require('path');
+const os = require('os');
 
-const DEFAULT_RESPONSE = {
-  response: "That's interesting! I'm still learning, but I'm here to help. Try asking me about your tasks, habits, expenses, or mood! 🐾",
-  actions: [
-    { label: 'Show my tasks', type: 'navigate', target: 'tasks' },
-    { label: 'Daily summary', type: 'summary' },
-  ],
-};
-
-async function chatHandler(message, userName) {
-  // Simulate thinking delay
-  await new Promise((r) => setTimeout(r, 500 + Math.random() * 1000));
-
-  const lower = message.toLowerCase();
-
-  for (const entry of CLAW_RESPONSES) {
-    if (entry.keywords.some((kw) => lower.includes(kw))) {
-      return {
-        message: entry.response,
-        actions: entry.actions,
-        timestamp: Date.now(),
-      };
+async function getOpenclawToken() {
+  try {
+    const configPath = path.join(os.homedir(), '.openclaw', 'openclaw.json');
+    if (fs.existsSync(configPath)) {
+      const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+      return config?.gateway?.auth?.token || null;
     }
+  } catch (e) {
+    console.error("Could not read Openclaw config:", e);
   }
+  return null;
+}
 
-  return {
-    message: DEFAULT_RESPONSE.response,
-    actions: DEFAULT_RESPONSE.actions,
-    timestamp: Date.now(),
-  };
+async function chatHandler(message, userName, contextData) {
+  const db = getDb();
+  
+  try {
+    // 1. Gather Real-Time Context from SQLite
+    const tasks = await db.all('SELECT * FROM tasks WHERE done = 0 ORDER BY time ASC');
+    const spending = await db.get('SELECT SUM(amount) as spent FROM expenses');
+    const budgetRow = await db.get('SELECT amount FROM budget WHERE id = 1');
+    const habits = await db.all('SELECT * FROM habits');
+    
+    let locationContext = '';
+    if (contextData && contextData.location) {
+      locationContext = `User's current GPS location: ${contextData.location.lat.toFixed(4)}, ${contextData.location.lon.toFixed(4)}.`;
+    }
+
+    const systemPrompt = `You are Claw, a highly intelligent and affectionate AI companion for ${userName || 'the user'}. Use paw print emojis (🐾) occasionally. 
+You live in the Claw Buddy mobile app. 
+
+LIVE DATA:
+- Tasks: ${tasks.length > 0 ? tasks.map(t => `- ${t.title} at ${t.time || 'no time'}`).join('\n') : 'No pending tasks.'}
+- Budget: Spent ₹${spending?.spent || 0} out of ₹${budgetRow?.amount || 20000}.
+- Habits being tracked: ${habits.length > 0 ? habits.map(h => `${h.name} (streak: ${h.streak})`).join(', ') : 'None.'}
+${locationContext}
+
+Always respond concisely and helpfully. Keep answers short (1-3 sentences) suitable for a mobile app chat interface.`;
+
+    // 2. Connect to the real Openclaw AI Engine (local gateway)
+    const token = await getOpenclawToken();
+    if (!token) {
+      // Fallback if Openclaw is not running or securely configured
+      return { message: "I couldn't securely connect to my Openclaw AI brain. Please check your core Openclaw installation!" };
+    }
+
+    const aiRequest = await fetch('http://127.0.0.1:18789/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        model: 'primary',
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: message }
+        ],
+        max_tokens: 150
+      })
+    });
+
+    if (aiRequest.ok) {
+      const responseData = await aiRequest.json();
+      const aiResponseText = responseData.choices?.[0]?.message?.content || "I'm speechless!";
+      return {
+        message: aiResponseText,
+        actions: [] // Actions can be dynamically parsed later if needed
+      };
+    } else {
+      console.error("Openclaw AI Error:", await aiRequest.text());
+      return { message: "My AI cognitive engine (Openclaw) is currently unreachable. Make sure Openclaw is running!" };
+    }
+
+  } catch (error) {
+    console.error("Chat routing error:", error);
+    return { message: "Oops, I encountered a circuit error connecting to my AI brain." };
+  }
 }
 
 module.exports = { chatHandler };
+
