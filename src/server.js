@@ -116,7 +116,7 @@ async function startServer({ pairingData, pairingKey, wsPort = 18789, httpPort =
         res.json({
           greeting,
           userName: pairingData.userName,
-          summary: `You have ${tasksToday.count} tasks today, ${habitsPending.count} habits pending, and ₹${remaining.toLocaleString()} left in your budget. Let's go 💪`,
+          briefing: `You have ${tasksToday.count} tasks today, ${habitsPending.count} habits pending, and ₹${remaining.toLocaleString()} left in your budget. Let's go 💪`,
           tasksToday: tasksToday.count,
           habitsPending: habitsPending.count,
           budgetRemaining: remaining,
@@ -136,6 +136,7 @@ async function startServer({ pairingData, pairingKey, wsPort = 18789, httpPort =
     app.get('/habits', authMiddleware, habitHandlers.list);
     app.post('/habits', authMiddleware, habitHandlers.create);
     app.post('/habits/:id/checkin', authMiddleware, habitHandlers.checkIn);
+    app.delete('/habits/:id', authMiddleware, habitHandlers.remove);
 
     // Expenses API
     app.get('/expenses', authMiddleware, expenseHandlers.list);
@@ -145,6 +146,17 @@ async function startServer({ pairingData, pairingKey, wsPort = 18789, httpPort =
     // Journal API
     app.get('/journal', authMiddleware, journalHandlers.list);
     app.post('/journal', authMiddleware, journalHandlers.create);
+
+    // AI Chat API
+    app.post('/chat', authMiddleware, async (req, res) => {
+      try {
+        const { message } = req.body;
+        const response = await chatHandler(message, pairingData.userName);
+        res.json(response);
+      } catch (error) {
+        res.status(500).json({ error: error.message });
+      }
+    });
 
     // Push token registration
     app.post('/push/register', authMiddleware, (req, res) => {

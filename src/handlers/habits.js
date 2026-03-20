@@ -34,7 +34,7 @@ const habitHandlers = {
         };
       }));
       
-      res.json({ habits, total: habits.length });
+      res.json(habits);
     } catch (error) {
       res.status(500).json({ error: error.message });
     }
@@ -87,6 +87,23 @@ const habitHandlers = {
       const updated = await db.get('SELECT * FROM habits WHERE id = ?', [id]);
       console.log(`🎯 Habit check-in: "${updated.name}"`);
       res.json({ success: true, habit: updated });
+    } catch (error) {
+      res.status(500).json({ error: error.message });
+    }
+  },
+
+  remove: async (req, res) => {
+    const db = getDb();
+    const { id } = req.params;
+    
+    try {
+      const habit = await db.get('SELECT * FROM habits WHERE id = ?', [id]);
+      if (!habit) return res.status(404).json({ error: 'Habit not found' });
+      
+      await db.run('DELETE FROM habit_logs WHERE habit_id = ?', [id]);
+      await db.run('DELETE FROM habits WHERE id = ?', [id]);
+      console.log(`🗑️ Habit deleted: "${habit.name}"`);
+      res.json({ success: true });
     } catch (error) {
       res.status(500).json({ error: error.message });
     }

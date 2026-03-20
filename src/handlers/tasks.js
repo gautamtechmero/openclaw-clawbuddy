@@ -17,7 +17,7 @@ const taskHandlers = {
       }
       
       const tasks = await db.all(query, params);
-      res.json({ tasks, total: tasks.length });
+      res.json(tasks);
     } catch (error) {
       res.status(500).json({ error: error.message });
     }
