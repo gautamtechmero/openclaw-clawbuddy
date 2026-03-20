@@ -105,11 +105,8 @@ program
       auth: authSecret,
       sessionCode,
       connections: {
-        local: `ws://${localIP}:18789`,
+        local: `ws://${localIP}:18888`,
         http: `http://${localIP}:18790`,
-        cloudflare: null,
-        telegram: null,
-        whatsapp: null,
       },
       userName: os.userInfo().username || 'User',
       expoPushToken: null,
@@ -153,13 +150,13 @@ program
     const server = await startServer({
       pairingData,
       pairingKey,
-      wsPort: 18789,
+      wsPort: 18888,
       httpPort: 18790,
     });
 
     console.log(chalk.green('✓') + chalk.bold.white(' Server is running!'));
     console.log();
-    console.log(chalk.gray('  WebSocket: ') + chalk.white(`ws://${localIP}:18789`));
+    console.log(chalk.gray('  WebSocket: ') + chalk.white(`ws://${localIP}:18888`));
     console.log(chalk.gray('  HTTP API:  ') + chalk.white(`http://${localIP}:18790`));
     console.log();
     console.log(chalk.gray('  Press Ctrl+C to stop the server.'));
@@ -190,7 +187,7 @@ program
     const localIP = getLocalIP();
     
     // Refresh local connection info in case IP changed
-    pairingData.connections.local = `ws://${localIP}:18789`;
+    pairingData.connections.local = `ws://${localIP}:18888`;
     pairingData.connections.http = `http://${localIP}:18790`;
 
     console.log(chalk.yellow('⟳') + chalk.white(' Loading configuration for ') + chalk.bold.white(pairingData.userName));
@@ -200,13 +197,13 @@ program
     const server = await startServer({
       pairingData,
       pairingKey,
-      wsPort: 18789,
+      wsPort: 18888,
       httpPort: 18790,
     });
 
     console.log(chalk.green('✓') + chalk.bold.white(' Claw Buddy server is running!'));
     console.log();
-    console.log(chalk.gray('  WebSocket: ') + chalk.white(`ws://${localIP}:18789`));
+    console.log(chalk.gray('  WebSocket: ') + chalk.white(`ws://${localIP}:18888`));
     console.log(chalk.gray('  HTTP API:  ') + chalk.white(`http://${localIP}:18790`));
     console.log();
     console.log(chalk.gray('  Press Ctrl+C to stop the server.'));
