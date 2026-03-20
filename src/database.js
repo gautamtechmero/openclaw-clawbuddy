@@ -68,22 +68,6 @@ async function initDb() {
     await db.run('INSERT INTO budget (id, amount) VALUES (1, 20000)');
   }
 
-  // Seed initial data for demo if tables are empty
-  const taskCount = await db.get('SELECT COUNT(*) as count FROM tasks');
-  if (taskCount.count === 0) {
-    await db.run(`INSERT INTO tasks (id, title, description, time, priority, section, done) VALUES 
-      ('1', 'Review Q3 Report', 'Go through the final quarterly report', '10:00 AM', 'high', 'Morning', 0),
-      ('2', 'Call with Architecture Team', 'Discuss new microservices plan', '1:30 PM', 'medium', 'Afternoon', 0),
-      ('3', 'Update Design System', 'Sync Figma tokens with code', '4:00 PM', 'low', 'Afternoon', 0)`);
-  }
-
-  const habitCount = await db.get('SELECT COUNT(*) as count FROM habits');
-  if (habitCount.count === 0) {
-    await db.run(`INSERT INTO habits (id, name, emoji, streak, color) VALUES 
-      ('1', 'Stay hydrated', '💧', 12, '#0A84FF'),
-      ('2', 'Meditate', '🧘', 5, '#5E5CE6'),
-      ('3', 'Reading', '📚', 8, '#30D158')`);
-  }
 
   console.log('✅ Database initialized and seeded.');
   return db;
